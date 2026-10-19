@@ -10,7 +10,7 @@ ggplot(ydata) +
   geom_density(aes(x= likelihood), fill = "#998ec3", color = "#998ec3", alpha = 0.5) +
   geom_density(aes(x= posterior), fill = "white", color = "grey", alpha = 0.5) +
   xlab("\npitch difference in Hz (women - men)") +
-  theme_classic() +
+  theme_minimal() +
   scale_x_continuous(breaks = (c(-200,-100,0,100,200)), limits = c(-300,300)) + 
   theme(legend.position = "right",
         legend.key.height = unit(2,"line"),

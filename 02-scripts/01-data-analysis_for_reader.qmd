@@ -1,0 +1,352 @@
+---
+title: "Untitled"
+format: html
+---
+
+## Purpose
+
+Run the script `data_analysis_for_reader.R` as Quarto script to improve reproducibility.
+
+I make tweaks to the code to improve reproducibility.
+
+```{markdown}
+## Code to follow the tutorial: "Bayesian regression modeling (for factorial designs): A tutorial"
+## Authors: Michael Franke & Timo Roettger
+## Date last modified: 21/06/19
+## Contact: mchfranke@gmail.com; timo.b.roettger@gmail.com
+```
+
+
+## Set-up
+
+Install/load packages
+
+```{r}
+pacman::p_load(
+  tidyverse,  # convenience functions
+  brms, # package for Bayesian regression modeling
+  HDInterval, # package for credible interval computation
+  # Daniela's packages:
+  here, # project-relative file paths
+  janitor, # convenient table summaries
+  patchwork # combine plots
+  )
+```
+
+Use all cores:
+
+```{r}
+# option for Bayesian regression models:
+# use all available cores for parallel computing
+options(mc.cores = parallel::detectCores())
+```
+
+Set seed: 
+```{r}
+# set the random seed in order to make sure
+# you can reproduce the same results
+set.seed(1702)
+```
+
+## Load data
+
+Some tweaks:
+
+  - I'm re-naming their `politedata` as `df_polite` to follow my personal convention
+  - using the `here` package/function
+  - saving the data after downloading it
+  
+This chunks doesn't need to be run again:
+
+```{r}
+#| eval: false
+# load the data into variable "df_polite"
+df_polite = read_csv("https://raw.githubusercontent.com/michael-franke/bayes_mixed_regression_tutorial/master/code/politeness_data.csv")
+
+# save the data
+write_csv(df_polite, here("01-data", "df_polite.csv"))
+```
+
+Instead load the saved data:
+
+```{r}
+df_polite <- read_csv(here("01-data", "df_polite.csv"))
+```
+
+```{r}
+# inspect head of data
+head(df_polite)
+```
+
+### Explore dataset
+
+This section is my own addition.
+
+Count observations per gender
+
+```{markdown}
+df_polite |> 
+  tabyl(
+    gender
+  )
+```
+
+Observations per subject/context:
+
+```{markdown}
+df_polite |> 
+  tabyl(
+    subject, context
+  ) |> 
+  adorn_totals(where = c("col", "row"))
+```
+
+Semi-balanced (one participant is missing a polite context).
+
+Look at sentences distribution.
+
+```{markdown}
+df_polite |> 
+  tabyl(
+    subject, sentence, context
+  )
+```
+
+So each participant read each sentence in each context (missing polite S6 for one sentence).
+
+Distributions of pitch
+
+```{markdown}
+# histogram
+df_polite |> 
+  ggplot() +
+  aes(x = pitch, fill = gender) +
+  geom_histogram(alpha = .5, position = "identity") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+# density
+  df_polite |> 
+  ggplot() +
+  aes(x = pitch, fill = gender, colour = gender) +
+  geom_density(alpha = .5, position = "identity") +
+  theme_minimal() +
+  
+  plot_layout(guides = "collect")
+```
+
+```{markdown}
+# boxplot
+df_polite |> 
+  ggplot() +
+  aes(x = gender, y = pitch, fill = context, colour = context, shape = context) +
+  geom_boxplot(alpha = .5) +
+  theme_minimal() +
+# scatterplot
+df_polite |> 
+  ggplot() +
+  aes(x = gender, y = pitch, fill = context, colour = context, shape = context) +
+  geom_point(alpha = .5, position = position_dodge(.5)) +
+  theme_minimal() 
+```
+
+Distribution of mean pitch per participant (boxplot) and sentence (scatterplot):
+
+```{markdown}
+# boxplot
+df_polite |> 
+  summarise(
+    mean = mean(pitch),
+    .by = c(subject, gender, context)
+  ) |> 
+  ggplot() +
+  aes(x = gender, y = mean, fill = context, colour = context, shape = context) +
+  geom_boxplot(alpha = .5) +
+  theme_minimal() +
+# scatterplot
+df_polite |> 
+  summarise(
+    mean = mean(pitch),
+    .by = c(sentence, gender, context)
+  ) |> 
+  ggplot() +
+  aes(x = gender, y = mean, fill = context, colour = context, shape = context) +
+  geom_point(alpha = .5, position = position_dodge(.5)) +
+  theme_minimal() 
+```
+
+## Run and inspect model with only fixed effecsts
+
+```{R}
+# formula for fixed effect regression model
+formula_FE = pitch ~ gender * context
+
+# run regression model in brms
+model_FE = brm(
+  formula = formula_FE,
+  data = df_polite,
+  seed = 1702
+)
+
+# print out model_FE summary
+model_FE
+
+# extract posterior samples
+post_samples_FE = posterior_samples(model_FE)
+head(post_samples_FE %>% round(1))
+
+# proportion of negative samples for parameter b_contextpol
+# this number approximates P(b_contextpol < 0 | model, data)
+mean(post_samples_FE$b_contextpol < 0)
+
+# proportion of samples for which the mean of cell 2 was larger
+# than that of cell 3
+# this number approximates the quantity:
+# P(b_contextpol > b_genderM | model, data)
+mean(post_samples_FE$b_contextpol > post_samples_FE$b_genderM)
+```
+
+## Showcasing the `faintr` package
+
+```{R}
+###########################################
+## showcasing the faintr package
+## (still hoping for the best)
+###########################################
+
+# load package to allow installation from GitHub
+library(devtools)
+
+# install package with convenience function for Bayesian regression
+# models for factorial designs from GitHub
+install_github(
+  repo = "michael-franke/bayes_mixed_regression_tutorial",
+  subdir = "faintr")
+
+# load the just installed package
+library(faintr)
+
+# extract posterior cell means
+post_cells(model_FE)$predictor_values
+
+# extract cell means and plot them
+posterior_cell_means = post_cells(model_FE)$predictor_values %>% 
+  gather(key = "parameter", value = "posterior") 
+
+# compare cell means with each other
+compare_groups(
+  model = model_FE,
+  lower = list(gender = "M", context = "inf"),
+  higher = list(gender = "F", context = "pol")
+)
+
+
+get_posterior_beliefs_about_hypotheses = function(model) {
+  # insert the comparisons you are interested in as strings 
+  tibble(
+    hypothesis = c("Female-polite < Female-informal", 
+                   "Male-polite < Male-informal",
+                   "Male-informal < Female-polite"),
+    probability = c(
+      # insert the comparisons you are interested in referring to the extracted samples
+      compare_groups(
+        model = model, 
+        lower = list(gender = "F", context = "pol"), 
+        higher = list(gender = "F", context = "inf")
+      )$probability,
+      compare_groups(
+        model = model, 
+        lower = list(gender = "M", context = "pol"), 
+        higher = list(gender = "M", context = "inf")
+      )$probability,
+      compare_groups(
+        model = model, 
+        lower = list(gender = "M", context = "inf"),
+        higher = list(gender = "F", context = "pol")
+      )$probability 
+    )
+  )
+}
+
+get_posterior_beliefs_about_hypotheses(model_FE)
+```
+
+### Add prior information
+
+```{R}
+#########################
+## add prior information
+#########################
+
+# see the priors of your fitted model
+prior_summary(model_FE)
+
+# get all possible priors for your model before fitting it
+# (here prior_summary and get_prior give identical outputs 
+# because you have not specified any priors beyond the default priors
+get_prior(formula = pitch ~ gender * context,
+          data = df_polite)
+
+# define priors
+priorFE <- c(
+  # define a skeptical prior for the effect of context on female speakers
+  prior(normal(0, 10), coef = contextpol)
+)
+
+# let's run our models with our specified priors
+model_FE_prior = brm(formula = pitch ~ gender * context,
+                     prior = priorFE, # add prior
+                     data = df_polite,
+                     control = list(adapt_delta = 0.99),
+                     seed = 1702)
+
+# Extract posterior beliefs about our hypotheses
+get_posterior_beliefs_about_hypotheses(model_FE_prior)
+
+###############
+## model check
+###############
+
+# run model without considering gender
+model_FE_noGender = brm(formula =  pitch ~ context,
+                        data = df_polite,
+                        control = list(adapt_delta = 0.99),
+                        seed = 1702)
+
+# perform posterior predictive check fo both models
+pp_check(model_FE_noGender, nsample = 100)
+pp_check(model_FE, nsample = 100)
+```
+
+### Models with additional random effects
+
+```{R}
+###############################################
+## models with additional random effects
+###############################################
+
+# hierarchical model with the maximial RE structure licensed by the design
+# (notice that factor 'gender' does not vary for a given value of variable 'subject')
+model_MaxRE = brm(formula = pitch ~ gender * context +
+                    (1 + gender * context | sentence) +
+                    (1 + context | subject),
+                  data = df_polite,
+                  control = list(adapt_delta = 0.99),
+                  seed = 1702)
+
+# Extract posterior beliefs about our hypotheses
+get_posterior_beliefs_about_hypotheses(model_MaxRE)
+
+compare_groups(
+  model = model_FE, 
+  lower = list(gender = "F", context = "pol"), 
+  higher = list(gender = "F", context = "inf")
+)
+
+compare_groups(
+  model = model_MaxRE, 
+  lower = list(gender = "M", context = "pol"), 
+  higher = list(gender = "M", context = "inf")
+)
+
+```
+

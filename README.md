@@ -1,9 +1,14 @@
 # bayes_mixed_regression_tutorial
-Very basic tutorial on Bayesian mixed effects regression for factorial designs
 
-To obtain the `faintr` package type:
+My 
 
-```
-library(devtools)
-install_github('michael-franke/bayes_mixed_regression_tutorial/faintr', build_vignettes = TRUE)
-```
+## Folder structure
+
+  - `01-data/`
+    + contains the dataset
+  - `02-scripts/` 
+    + contains my Quarto versions of their scripts
+  - `output/`
+    + contains output from my scripts, e.g., models and figures
+  - `bayes_mixed_regression_tutorial`
+    + materials from the paper's (GitHub repo)[https://github.com/michael-franke/bayes_mixed_regression_tutorial]
