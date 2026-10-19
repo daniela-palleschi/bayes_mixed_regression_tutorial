@@ -174,7 +174,7 @@ df_polite |>
   theme_minimal() 
 ```
 
-## Run and inspect model with only fixed effecsts
+## Run and inspect model with only fixed effects
 
 ```{R}
 # formula for fixed effect regression model
@@ -184,26 +184,56 @@ formula_FE = pitch ~ gender * context
 model_FE = brm(
   formula = formula_FE,
   data = df_polite,
+  file = here("output", "models", "model_FE.rds"), # Daniela added this
   seed = 1702
 )
+```
 
+
+```{R}
 # print out model_FE summary
 model_FE
+```
 
+This produces a warning, as `posterior_samples()` was deprecated:
+
+```{R}
 # extract posterior samples
 post_samples_FE = posterior_samples(model_FE)
-head(post_samples_FE %>% round(1))
+```
 
+Alternative: 
+
+```{markdown}
+# extract posterior samples
+post_samples_FE <- as_draws_df(model_FE)
+```
+
+Inspect
+
+```{R}
+head(post_samples_FE %>% round(1))
+```
+
+This gives us the probability that the context effect is negative (below 0):
+
+```{R}
 # proportion of negative samples for parameter b_contextpol
 # this number approximates P(b_contextpol < 0 | model, data)
 mean(post_samples_FE$b_contextpol < 0)
+```
 
+And the proportion of draws where politeness effect was larger than the gender effect:
+
+```{R}
 # proportion of samples for which the mean of cell 2 was larger
 # than that of cell 3
 # this number approximates the quantity:
 # P(b_contextpol > b_genderM | model, data)
 mean(post_samples_FE$b_contextpol > post_samples_FE$b_genderM)
 ```
+
+So context effect > gender effect in all 4000 draws.
 
 ## Showcasing the `faintr` package
 

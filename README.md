@@ -1,6 +1,6 @@
 # bayes_mixed_regression_tutorial
 
-My 
+A fork of https://github.com/michael-franke/bayes_mixed_regression_tutorial
 
 ## Folder structure
 
